@@ -1,4 +1,5 @@
 ﻿using Microsoft.Identity.Client;
+using System.Net.Http.Headers;
 
 Console.WriteLine("Making the call...");
 RunAsync().GetAwaiter().GetResult();
@@ -14,7 +15,7 @@ static async Task RunAsync()
         .WithAuthority(new Uri(config.Authority))
         .Build();
 
-    string[] ResourceIds = new string[] {config.ResourceID};
+    string[] ResourceIds = new string[] { config.ResourceID };
 
     AuthenticationResult result = null;
     try
@@ -29,6 +30,37 @@ static async Task RunAsync()
     {
         Console.ForegroundColor = ConsoleColor.Red;
         Console.WriteLine(ex.Message);
+        Console.ResetColor();
+    }
+
+    if (!string.IsNullOrEmpty(result.AccessToken))
+    {
+        var httpClient = new HttpClient();
+        var defaultRequestHeaders = httpClient.DefaultRequestHeaders;
+
+        if (defaultRequestHeaders.Accept == null ||
+            !defaultRequestHeaders.Accept.Any(m => m.MediaType == "application/json"))
+        {
+            httpClient.DefaultRequestHeaders.Accept.Add(new
+                MediaTypeWithQualityHeaderValue("application/json"));
+        }
+        defaultRequestHeaders.Authorization =
+        new AuthenticationHeaderValue("bearer", result.AccessToken);
+
+        HttpResponseMessage response = await httpClient.GetAsync($"{config.BaseAddress}WeatherForecast");
+        if (response.IsSuccessStatusCode)
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            string json = await response.Content.ReadAsStringAsync();
+            Console.WriteLine(json);
+        }
+        else
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"Failed to call the Web Api: {response.StatusCode}");
+            string content = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"Content: {content}");
+        }
         Console.ResetColor();
     }
 }
